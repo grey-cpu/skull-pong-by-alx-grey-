@@ -1,0 +1,197 @@
+import pygame
+import sys
+import random
+
+# Initialize Pygame
+pygame.init()
+
+# Screen settings
+WIDTH, HEIGHT = 800, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("SKULL PONG by Alex Grey")
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+
+# Paddle settings
+PADDLE_WIDTH, PADDLE_HEIGHT = 20, 100
+PADDLE_SPEED = 7
+
+# Ball (skull) settings
+BALL_SIZE = 30
+ball_speed_x = 3  # Start slower
+ball_speed_y = 3
+
+# Score
+score_left = 0
+score_right = 0
+
+# Fonts
+font = pygame.font.SysFont("comicsansms", 40)
+title_font = pygame.font.SysFont("comicsansms", 80, bold=True)
+
+# Paddles
+left_paddle = pygame.Rect(50, HEIGHT//2 - PADDLE_HEIGHT//2, PADDLE_WIDTH, PADDLE_HEIGHT)
+right_paddle = pygame.Rect(WIDTH - 50 - PADDLE_WIDTH, HEIGHT//2 - PADDLE_HEIGHT//2, PADDLE_WIDTH, PADDLE_HEIGHT)
+
+# Ball (Skull)
+ball = pygame.Rect(WIDTH//2 - BALL_SIZE//2, HEIGHT//2 - BALL_SIZE//2, BALL_SIZE, BALL_SIZE)
+
+clock = pygame.time.Clock()
+
+# Track paddle hits to increase speed
+paddle_hits = 0
+
+# Current ball color
+def random_color():
+    return (
+        random.randint(150, 255),
+        random.randint(100, 255),
+        random.randint(100, 255),
+    )
+
+ball_color = random_color()
+
+# Draw skull as circle with eyes and mouth
+def draw_skull(surface, rect, color):
+    pygame.draw.circle(surface, color, rect.center, BALL_SIZE // 2)  # head
+    eye_radius = 5
+    eye_y = rect.centery - 6
+    pygame.draw.circle(surface, BLACK, (rect.centerx - 8, eye_y), eye_radius)  # left eye
+    pygame.draw.circle(surface, BLACK, (rect.centerx + 8, eye_y), eye_radius)  # right eye
+    pygame.draw.rect(surface, BLACK, (rect.centerx - 10, rect.centery + 4, 20, 6))  # mouth
+
+# Title Screen with spaced letters and cycling colors
+def title_screen():
+    color_cycle = [
+        (255, 0, 0),
+        (255, 127, 0),
+        (255, 255, 0),
+        (0, 255, 0),
+        (0, 255, 255),
+        (0, 0, 255),
+        (255, 0, 255),
+    ]
+    color_index = 0
+    while True:
+        screen.fill(BLACK)
+        title_text = "S K U L L   P O N G"
+        spacing = 50
+        start_x = (WIDTH - spacing * len(title_text)) // 2
+        y = HEIGHT // 3
+
+        for i, ch in enumerate(title_text):
+            if ch != " ":
+                color = color_cycle[(color_index + i) % len(color_cycle)]
+                letter_surf = title_font.render(ch, True, color)
+                screen.blit(letter_surf, (start_x + i * spacing, y))
+        color_index = (color_index + 1) % len(color_cycle)
+
+        instr1 = font.render("Press SPACE to Start", True, WHITE)
+        instr2 = font.render("Press ESC to Quit", True, WHITE)
+        screen.blit(instr1, ((WIDTH - instr1.get_width()) // 2, HEIGHT // 2 + 100))
+        screen.blit(instr2, ((WIDTH - instr2.get_width()) // 2, HEIGHT // 2 + 150))
+
+        pygame.display.flip()
+        clock.tick(10)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    return
+                if event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+
+def reset_ball():
+    global ball, ball_speed_x, ball_speed_y, ball_color, paddle_hits
+    ball.center = (WIDTH // 2, HEIGHT // 2)
+    ball_speed_x = 3 * random.choice([-1, 1])
+    ball_speed_y = 3 * random.choice([-1, 1])
+    ball_color = random_color()
+    paddle_hits = 0
+
+def increase_speed():
+    global ball_speed_x, ball_speed_y
+    ball_speed_x *= 1.1
+    ball_speed_y *= 1.1
+
+# Game Loop
+def game():
+    global ball_speed_x, ball_speed_y, score_left, score_right, ball_color, paddle_hits
+
+    reset_ball()
+
+    running = True
+    while running:
+        # Events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+        # Movement
+        keys = pygame.key.get_pressed()
+        # Left paddle (W/S)
+        if keys[pygame.K_w] and left_paddle.top > 0:
+            left_paddle.y -= PADDLE_SPEED
+        if keys[pygame.K_s] and left_paddle.bottom < HEIGHT:
+            left_paddle.y += PADDLE_SPEED
+        # Right paddle (Arrow keys)
+        if keys[pygame.K_UP] and right_paddle.top > 0:
+            right_paddle.y -= PADDLE_SPEED
+        if keys[pygame.K_DOWN] and right_paddle.bottom < HEIGHT:
+            right_paddle.y += PADDLE_SPEED
+
+        # Move ball
+        ball.x += ball_speed_x
+        ball.y += ball_speed_y
+
+        # Bounce off top and bottom walls with color change
+        if ball.top <= 0 or ball.bottom >= HEIGHT:
+            ball_speed_y *= -1
+            ball_color = random_color()
+
+        # Bounce off paddles with color change + speed up every 10 hits
+        if ball.colliderect(left_paddle) and ball_speed_x < 0:
+            ball_speed_x *= -1
+            ball_color = random_color()
+            paddle_hits += 1
+            if paddle_hits % 10 == 0:
+                increase_speed()
+
+        if ball.colliderect(right_paddle) and ball_speed_x > 0:
+            ball_speed_x *= -1
+            ball_color = random_color()
+            paddle_hits += 1
+            if paddle_hits % 10 == 0:
+                increase_speed()
+
+        # Score check - reset ball and update score
+        if ball.left <= 0:
+            score_right += 1
+            reset_ball()
+        if ball.right >= WIDTH:
+            score_left += 1
+            reset_ball()
+
+        # Draw everything
+        screen.fill(BLACK)
+        pygame.draw.rect(screen, WHITE, left_paddle)
+        pygame.draw.rect(screen, WHITE, right_paddle)
+        draw_skull(screen, ball, ball_color)
+
+        score_display = font.render(f"{score_left}    {score_right}", True, WHITE)
+        screen.blit(score_display, (WIDTH//2 - score_display.get_width()//2, 20))
+
+        pygame.display.flip()
+        clock.tick(60)
+
+# Main Loop
+while True:
+    title_screen()
+    game()
